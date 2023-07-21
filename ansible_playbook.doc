@@ -1,0 +1,334 @@
+- name: Create Inventory Folder
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+
+    - name: Remove old inventory folder
+      file:
+        path: ./inventory
+        state: absent
+
+    - name: Create new inventory folder
+      file:
+        path: ./inventory
+        state: directory
+
+
+- hosts: Cisco_ios_XE_devices
+  gather_facts: no
+  connection: network_cli
+  roles:
+    - clay584.parse_genie
+  vars:
+    ansible_user: xxxx
+    ansible_password: xxxx
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    ansible_network_os: ios
+    ansible_become: yes
+    ansible_become_method: enable
+    ansible_become_password: xxx
+    ansible_command_timeout: 1200
+    Make: Cisco
+  tasks:
+    - name: Retrieve show version output
+      ios_command:
+        commands:
+          - show version
+      register: show_version_output
+    - name: Print Show Version Output
+      debug:
+        var: show_version_output
+
+    - name: Print show version output
+      debug:
+        var: show_version_output.stdout_lines
+
+    - name: Debug Genie Filter
+      set_fact:
+         parsed_show_version: "{{ show_version_output.stdout[0] | parse_genie(command='show version', os='ios') }}"
+      delegate_to: localhost
+    - name: Print Genie Output
+      debug:
+        var: parsed_show_version
+    - name: Create file
+      template:
+       src: ciscotest.j2
+       dest: "/home/jmahaja1/xxxxx/inventory/{{inventory_hostname}}-details"
+       mode: 0744
+      connection: local
+      ignore_errors: yes
+
+- name: Get Cisco XR system information
+  hosts: Cisco_ios_XR_devices
+  gather_facts: no
+  connection: network_cli
+  roles:
+    - clay584.parse_genie
+  vars:
+    ansible_user: xxxx
+    ansible_password: xxxx
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    ansible_network_os: iosxr
+    ansible_become: yes
+    ansible_become_method: enable
+    ansible_become_password: xxxx
+    ansible_command_timeout: 1200
+    Make: CiscoXR
+  tasks:
+    - name: Retrieve show version output
+      iosxr_command:
+        commands:
+          - show version
+      register: show_version_output
+    - name: Print Show Version Output
+      debug:
+        var: show_version_output
+    - name: Print show version output
+      debug:
+        var: show_version_output.stdout_lines
+
+    - name: Debug Genie Filter
+      set_fact:
+         parsed_show_version: "{{ show_version_output.stdout[0] | parse_genie(command='show version', os='iosxr') }}"
+      delegate_to: localhost
+    - name: Print Genie Output
+      debug:
+        var: parsed_show_version
+    - name: Get show inventory output
+      iosxr_command:
+        commands:
+          - show inventory
+      register: show_inventory_output
+    - name: Print show inventory output
+      debug:
+        var: show_inventory_output
+    - name: Debug Genie filter
+      set_fact:
+         parsed_show_version_inventory: "{{ show_inventory_output.stdout[0] | parse_genie(command='show inventory', os='iosxr')}}"
+      delegate_to: localhost
+    - name: Print Genie output
+      debug:
+        var: parsed_show_version_inventory.module_name['Rack 0']
+    - name: Create file
+      template:
+       src: ciscoxrtest.j2
+       dest: "/var/tmp/{{inventory_hostname}}-details"
+       mode: 0744
+      connection: local
+      ignore_errors: yes
+
+
+- name: Get Juniper  Device Facts
+  hosts: Juniper_devices
+  connection: local
+  gather_facts: no
+  vars:
+    #ansible_ssh_private_key_file: "../id_rsa"             ansible_python_interpreter: xxxxx
+    netconf_port: 22
+    Make: Juniper
+    connection_info:
+      host: "{{ ansible_ssh_host }}"
+      port: 22
+      user: xxxx
+      #ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
+  tasks:
+  - name: Retrieve facts from Juiper devices running Junos OS
+    junipernetworks.junos.junos_facts:
+    register: juniper_facts
+
+  - name: Print Juniper facts
+    debug:
+      var: juniper_facts
+
+  - name: Get hardware inventory for Juniper devices
+    junipernetworks.junos.junos_command:
+      commands:
+      - show chassis hardware
+      - show version
+      - show interfaces
+      display: text
+  - name: Create File
+    template:
+     src: junipertest.j2
+     dest: "/home/xxxx/xxx/inventory/{{ inventory_hostname }}-details"
+     mode: 0744
+    connection: local
+    ignore_errors: yes
+
+
+
+
+- name: Get BIGIP-4000 F5 device facts
+  hosts: F5_devices
+  gather_facts: false
+  connection: local
+  collections:
+    - f5networks.f5_modules
+  vars:
+    Make: F5
+    ansible_command_timeout: 60
+    ansible_user: xxx
+    #ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
+  tasks:
+    - name: Collect BIGIP-4000 F5 facts
+      bigip_device_info:
+        gather_subset:
+          - system-info
+        provider:
+          server: xx.xx.xx.xx
+          transport: rest
+          user: xxxx
+          password: xxxx
+          server_port: 443
+          timeout: 10
+          validate_certs: false
+      register: Result
+
+    - debug:
+        var: Result
+
+    - name: DISPLAY COMPLETE BIG IP SYSTEM INFORMATION
+      debug:
+        var: Result.ansible_facts.ansible_net_system_info.base_mac_address
+    - name: DISPLAY ONLY THE VERSION
+      debug:
+        var: Result.ansible_facts.ansible_net_system_info.product_version
+
+    - name: Write the output var to a file called result1
+      copy:
+        content: "{{ Result }}"
+        dest: "/home/jmahaja1/xxxx/result1"
+
+    - name: Write the harware bit of the var to a file result2
+      copy:
+        content: "{{ Result.ansible_facts.ansible_net_system_info.base_mac_address }}"
+        dest: "/home/xxx/xxx/result2"
+
+    - name: Create file
+      template:
+       src: f5test.j2
+       dest: "/home/xxxx/xxxx/inventory/{{ inventory_hostname }}-details"
+       mode: 0744
+      connection: local
+      ignore_errors: yes
+
+
+- name: Get Fortigate device facts
+  hosts: fortigates
+  connection: httpapi
+  collections:
+    - fortinet.fortios
+  vars:
+    ansible_httpapi_use_ssl: yes
+    ansible_httpapi_validate_certs: no
+    ansible_httpapi_port: 443
+    vdom: ""
+    Make: Fortigate
+    Model: 400E
+  tasks:
+  - name: get all
+    fortios_configuration_fact:
+      vdom: ""
+      access_token: "xxxxxx"
+      selector: hardware_status
+    register: show_hardware_status
+  - name: get all
+    fortios_configuration_fact:
+      vdom: ""
+      access_token: "xxxx"
+      selector: system_status
+    register: show_system_status
+  - name: Create file
+    template:
+     src: fortitest.j2
+     dest: "/home/xxxx/inventory/{{inventory_hostname}}-details"
+     mode: 0744
+    connection: local
+    ignore_errors: yes
+
+- name: Execute Python script for Cisco WLCs
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Run Python script
+      command: python3 netmiko_test.py
+      register: script_output
+- name: Connect to Cisco NX-OS device and run command
+  hosts: nxos_devices
+  gather_facts: no
+  vars:
+    Make: Cisco
+    ansible_network_os: nxos
+    ansible_user: xxxx
+
+    ansible_httpapi_use_ssl: yes
+    ansible_httpapi_validate_certs: no
+    ansible_network_os: nxos
+    ansible_httpapi_pass: xxxxx
+    transport: nxapi
+    ansible_command_timeout: 1200
+  roles:
+     - clay584.parse_genie
+
+  tasks:
+    - name: Run show version command on Cisco NX-OS device
+      nxos_command:
+        commands:
+          - show version
+
+      register: result
+
+    - name: Display command output
+      debug:
+        var: result.stdout[0]
+    - name: Debug Genie Filter
+      set_fact:
+         parsed_show_version: "{{ result.stdout[0] | parse_genie(command='show version', os='nxos') }}"
+      delegate_to: localhost
+    - name: Print Genie Output
+      debug:
+        var: parsed_show_version
+    - name: Run show inventory command on Cisco NX-OS device
+      nxos_command:
+         commands:
+           - show inventory
+      register: result1
+    - name: Display command output
+      debug:
+        var: result1.stdout[0]
+    - name: Debug Genie Filter
+      set_fact:
+         parsed_show_inventory: "{{ result1.stdout[0] | parse_genie(command='show inventory', os='nxos') }}"
+      delegate_to: localhost
+    - name: Print Genie Output
+      debug:
+        var: parsed_show_inventory
+
+    - name: Create file
+      template:
+       src: cisconxostest.j2
+       dest: "/home/xxxx/xxx/inventory/{{inventory_hostname}}-details"
+       mode: 0744
+      connection: local
+      ignore_errors: yes
+
+- name: Assemble
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: Consolidate inventory files
+      assemble:
+        mode: '644'
+        src: ./inventory
+        dest: ./Network_inventory
+    - name: Move Network_inventory to transfer folder
+      copy:
+        src: ./Network_inventory
+        dest: /var/tmp/Network_inventory
+        mode: '644'
+
