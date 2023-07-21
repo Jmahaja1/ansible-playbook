@@ -1,0 +1,27 @@
+[Juniper_devices]
+xx.xx.xx.xx:22 ansible_connection=netconf ansible_network_os=junos
+
+[Cisco_ios_XE_devices]
+Device_name ansible_host=xx.xx.xx.xx
+
+ [Cisco_ios_XR_devices]
+Device_name ansible_host=xx.xx.xx.xx
+
+
+[Loadbalancers]
+Device_name ansible_host=xx.xx.xx.xx
+
+ [Fortinetfirewalls]
+Device_name ansible_host=xx.xx.xx.xx
+
+
+[CiscoWLC]
+Device_name ansible_host=xx.xx.xx.xx
+
+[Ciscoswitches]
+Device_name ansible_host=xx.xx.xx.xx
+
+
+[nxos_devices]
+Device_name ansible_host=xx.xx.xx.xx
+
